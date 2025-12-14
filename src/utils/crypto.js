@@ -80,7 +80,7 @@ const CryptoHelper = {
         } catch (e) {
             console.error("Decryption failed:", e);
             // Return a placeholder so the UI doesn't crash
-            return "[DECRYPTION FAILED]";
+            return "[DECRYPTION_FAILED]";
         }
     }
 };

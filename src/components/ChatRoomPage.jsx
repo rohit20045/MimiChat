@@ -162,7 +162,7 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
                             threatInfo = await analyzeMessage(decryptedText);
                         }
                     } catch (e) {
-                        decryptedText = "[DECRYPTION FAILED]";
+                        decryptedText = "[DECRYPTION-FAILED]";
                     }
 
                     newMessages.push({
