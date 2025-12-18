@@ -296,6 +296,10 @@ const handleSend = async (e) => {
 <button
     onClick={async () => {
         try {
+            if (onLeave) {
+                await onLeave();
+            }
+
             await signOut(auth);  
             window.location.href = "/"; 
         } catch (err) {
