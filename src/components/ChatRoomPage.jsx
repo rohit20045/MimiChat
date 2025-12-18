@@ -6,6 +6,7 @@ import {
     onSnapshot,
     query,
     serverTimestamp,
+    setDoc,
     deleteDoc,
     doc,
     getMessagesCollectionPath,
@@ -23,22 +24,10 @@ import {
     LogOut, Key, Users, Copy, Send, ShieldAlert, Mail
 } from 'lucide-react';
 
-// AI UPDATE: Import TensorFlow.js and the toxicity model
-import * as tf from '@tensorflow/tfjs';
-import * as toxicity from '@tensorflow-models/toxicity';
-
 import { sendInvite } from '../firebase';
 
-/**
- * ChatRoomPage — Fully Updated with:
- * 1. Logout button
- * 2. Invite User modal
- * 3. Inbox notifications
- * 
- * NOTHING ELSE CHANGED.
- */
-function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
-    const [derivedKey, setDerivedKey] = useState(null);
+
+function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom , onJoin, derivedKey}) {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [userCount, setUserCount] = useState(0);
@@ -47,9 +36,6 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
     const [loadingText, setLoadingText] = useState('Deriving encryption key...');
     const [showSecretModal, setShowSecretModal] = useState(isNewRoom);
 
-    // AI Model state
-    const [toxicityModel, setToxicityModel] = useState(null);
-
     // Added for Invitation
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
@@ -57,86 +43,33 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
     const [inviteMessage, setInviteMessage] = useState('');
 
     const messagesEndRef = useRef(null);
-    const participantDocId = useRef(null);
-
-    // LOAD AI MODEL
-    useEffect(() => {
-        setLoadingText('Loading AI security model...');
-        const threshold = 0.9;
-
-        toxicity.load(threshold, [
-            'toxicity',
-            'severe_toxicity',
-            'identity_attack',
-            'insult',
-            'threat'
-        ])
-            .then(model => {
-                setToxicityModel(model);
-                setLoadingText('Deriving encryption key...');
-            })
-            .catch(err => {
-                console.error("AI model load failed", err);
-                setToxicityModel(null);
-            });
-    }, []);
-
-    // DERIVE ENCRYPTION KEY
-    useEffect(() => {
-        const initKey = async () => {
-            try {
-                setError('');
-                setLoading(true);
-                const key = await CryptoHelper.deriveKey(secretKey);
-                setDerivedKey(key);
-            } catch (e) {
-                setError(e.message);
-            }
-        };
-        initKey();
-    }, [secretKey]);
-
-    // AI MESSAGE CHECK
-    const analyzeMessage = async (text) => {
-        if (!toxicityModel) return { isToxic: false, threatLabel: null };
-        const predictions = await toxicityModel.classify([text]);
-
-        for (const prediction of predictions) {
-            if (prediction.results[0].match) {
-                return { isToxic: true, threatLabel: prediction.label };
-            }
-        }
-        return { isToxic: false, threatLabel: null };
-    };
 
     // PRESENCE + MESSAGES LISTENERS
     useEffect(() => {
-        if (!derivedKey || !roomId) return;
-
-        if (!toxicityModel) {
-            console.warn("AI not loaded — chat continues without threat detection.");
-        }
+        if (!roomId || !user?.uid) return;
 
         setLoading(false);
-        setLoadingText('');
+        setLoadingText("");
 
-        // Presence
-        const participantsCol = collection(db, getParticipantsCollectionPath(roomId));
-        const addParticipant = async () => {
-            try {
-                const docRef = await addDoc(participantsCol, {
-                    uid: user.uid,
-                    email: user.email,
-                    joined: serverTimestamp()
-                });
-                participantDocId.current = docRef.id;
-            } catch (e) {}
-        };
-        addParticipant();
+        const participantRef = doc(
+            db,
+            getParticipantsCollectionPath(roomId),
+            user.uid
+        );
 
+        // JOIN ONCE
+        setDoc(participantRef, {
+            uid: user.uid,
+            email: user.email,
+            joined: serverTimestamp()
+        }, { merge: true });
+
+        // LISTEN
         const unsubscribeParticipants = onSnapshot(
-            participantsCol,
-            (snapshot) => setUserCount(snapshot.size)
+            collection(db, getParticipantsCollectionPath(roomId)),
+            (snapshot) => {
+                setUserCount(snapshot.size);
+            }
         );
 
         // Messages
@@ -149,28 +82,28 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
                 const newMessages = [];
                 for (const docSnap of snapshot.docs) {
                     const data = docSnap.data();
-                    let decryptedText;
-                    let threatInfo = { isToxic: false, threatLabel: null };
+                    let text;
 
-                    try {
-                        decryptedText = await CryptoHelper.decryptMessage(
+                    if (!derivedKey) 
+                    {
+                        text = "[DECRYPTING…]";
+                    } 
+                    else 
+                    {
+                        text = await CryptoHelper.decryptMessage(
                             derivedKey,
-                            data.text
+                            data.text,
+                            data.hash
                         );
-
-                        if (decryptedText) {
-                            threatInfo = await analyzeMessage(decryptedText);
-                        }
-                    } catch (e) {
-                        decryptedText = "[DECRYPTION-FAILED]";
                     }
-
                     newMessages.push({
                         id: docSnap.id,
-                        ...data,
-                        text: decryptedText,
-                        isToxic: threatInfo.isToxic,
-                        threatLabel: threatInfo.threatLabel
+                        senderUid: data.senderUid,
+                        senderEmail: data.senderEmail,
+                        timestamp: data.timestamp,
+                        hash:data.hash,
+                        encryptedText: data.text,  
+                        text                          
                     });
                 }
 
@@ -188,18 +121,43 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
         return () => {
             unsubscribeParticipants();
             unsubscribeMessages();
+            deleteDoc(participantRef).catch(() => {});
+        };
+    },[roomId, user.uid]);
 
-            if (participantDocId.current) {
-                deleteDoc(
-                    doc(
-                        db,
-                        getParticipantsCollectionPath(roomId),
-                        participantDocId.current
-                    )
-                ).catch(() => {});
+    useEffect(() => {
+        if (!derivedKey || messages.length === 0) return;
+
+        const redecrypt = async () => {
+            let didUpdate = false;
+
+            const updated = await Promise.all(
+                messages.map(async (msg) => {
+                    if (msg.text !== "[DECRYPTING…]") return msg;
+
+                    didUpdate = true;
+
+                    const decrypted = await CryptoHelper.decryptMessage(
+                        derivedKey,
+                        msg.encryptedText,
+                        msg.hash
+                    );
+
+                    return {
+                        ...msg,
+                        text: decrypted
+                    };
+                })
+            );
+
+            if (didUpdate) {
+                setMessages(updated);
             }
         };
-    }, [derivedKey, roomId, user.uid, user.email, toxicityModel]);
+
+        redecrypt();
+    }, [derivedKey, messages]);
+
 
     // SCROLL BOTTOM
     useEffect(() => {
@@ -207,30 +165,36 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
     }, [messages]);
 
     // SEND MESSAGE
-    const handleSend = async (e) => {
+const handleSend = async (e) => {
         e.preventDefault();
         if (!newMessage.trim() || !derivedKey) return;
 
         const currentMsg = newMessage;
-        setNewMessage('');
+        setNewMessage("");
 
         try {
-            const encryptedText = await CryptoHelper.encryptMessage(
+            const encrypted = await CryptoHelper.encryptMessage(
                 derivedKey,
                 currentMsg
             );
 
-            await addDoc(collection(db, getMessagesCollectionPath(roomId)), {
-                text: encryptedText,
-                senderEmail: user.email,
-                senderUid: user.uid,
-                timestamp: serverTimestamp()
-            });
+            await addDoc(
+                collection(db, getMessagesCollectionPath(roomId)),
+                {
+                    text: encrypted.payload, //  encrypted message
+                    hash: encrypted.hash,     //  integrity hash
+                    senderEmail: user.email,
+                    senderUid: user.uid,
+                    timestamp: serverTimestamp()
+                }
+            );
         } catch (e) {
+            console.error(e);
             setError("Failed to send message.");
             setNewMessage(currentMsg);
         }
     };
+
 
     // COPY TO CLIPBOARD
     const copyToClipboard = (text) => {
@@ -296,12 +260,13 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
 
                 <div className="flex gap-2 items-center">
 
-                    {/* INBOX */}
                     <Inbox
                         userEmail={user.email}
-                        onAcceptInvite={(v) => {
-                            onLeave();
+                        currentRoomId={roomId}
+                        onAcceptInvite={({ roomId, secretKey }) => {
+                            onJoin(roomId, secretKey);
                         }}
+                        leaveRoom={onLeave}
                     />
 
                     {/* INVITE USER */}
@@ -331,8 +296,8 @@ function ChatRoomPage({ user, roomId, secretKey, onLeave, isNewRoom }) {
 <button
     onClick={async () => {
         try {
-            await signOut(auth);  // IMPORTANT: signOut(auth), not signOut()
-            window.location.href = "/"; // Guaranteed to reload App.jsx & go to login
+            await signOut(auth);  
+            window.location.href = "/"; 
         } catch (err) {
             console.error("Logout failed:", err);
         }

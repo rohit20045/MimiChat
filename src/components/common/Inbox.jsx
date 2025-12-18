@@ -1,15 +1,14 @@
-// src/components/common/Inbox.jsx
-import React, { useEffect, useState } from 'react';
+import  { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { Mail, CheckCircle, XCircle } from 'lucide-react';
-import { listenToInbox, updateInviteStatus, deleteInvite } from '../../firebase'; // adapt path if needed
+import { listenToInbox, updateInviteStatus, deleteInvite } from '../../firebase'; 
 
 /**
  * Props:
  * - userEmail (string) : current signed-in user's email (recipient)
  * - onAcceptInvite({ roomId, secretKey }) : callback when user accepts invite
  */
-function Inbox({ userEmail, onAcceptInvite }) {
+function Inbox({ userEmail, onAcceptInvite,leaveRoom, currentRoomId }) {
   const [show, setShow] = useState(false);
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,18 +30,35 @@ function Inbox({ userEmail, onAcceptInvite }) {
   const unreadCount = invites.filter(i => !i.read).length;
 
   const handleAccept = async (invite) => {
-    try {
-      // mark accepted and read
-      await updateInviteStatus(userEmail, invite.id, { status: 'accepted', read: true });
-      // callback so parent can join
-      if (onAcceptInvite && invite.roomId && invite.secretKey) {
-        onAcceptInvite({ roomId: invite.roomId, secretKey: invite.secretKey });
-        setShow(false);
+      try {
+        if (currentRoomId === invite.roomId) 
+          {
+              setShow(false);
+              return;
+          }
+
+          await updateInviteStatus(userEmail, invite.id, {
+              status: "accepted",
+              read: true
+          });
+
+          // Leave current room first
+          if (leaveRoom) {
+              await leaveRoom();
+          }
+
+          // Join invited room
+          onAcceptInvite({
+              roomId: invite.roomId,
+              secretKey: invite.secretKey
+          });
+
+          setShow(false);
+      } catch (e) {
+          console.error("Accept failed", e);
       }
-    } catch (e) {
-      console.error('Accept failed', e);
-    }
   };
+
 
   const handleDismiss = async (invite) => {
     try {

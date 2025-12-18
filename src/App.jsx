@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { auth, onAuthStateChanged, signOut } from './firebase';
 
+import CryptoHelper from './utils/crypto';
 import AuthPage from './components/AuthPage';
 import MenuPage from './components/MenuPage';
 import ChatRoomPage from './components/ChatRoomPage';
@@ -11,13 +12,29 @@ import Loading from './components/common/Loading';
  * This component handles the main page routing and authentication state.
  */
 function App() {
-    const [page, setPage] = useState('loading'); // loading, auth, menu, room
+    const [derivedKey, setDerivedKey] = useState(null);
+    const [page, setPage] = useState('loading');
     const [user, setUser] = useState(null);
     const [roomInfo, setRoomInfo] = useState({
         roomId: null,
         secretKey: null,
         isNewRoom: false
     });
+
+    useEffect(() => 
+        {
+        if (!roomInfo.roomId || !roomInfo.secretKey) {
+            setDerivedKey(null);
+            return;
+        }
+
+        const derive = async () => {
+            const key = await CryptoHelper.deriveKey(roomInfo.secretKey);
+            setDerivedKey(key);
+        };
+
+        derive();
+    }, [roomInfo.roomId, roomInfo.secretKey]);
 
     // Handle Firebase Auth state
     useEffect(() => {
@@ -53,11 +70,18 @@ function App() {
     };
 
     const handleLeaveRoom = () => {
+        setRoomInfo({
+            roomId: null,
+            secretKey: null,
+            isNewRoom: false
+        });
+
+        setDerivedKey(null);
+
         setPage('menu');
-        setRoomInfo({ roomId: null, secretKey: null, isNewRoom: false });
     };
 
-    // Global Logout Handler (Option C)
+    // Global Logout Handler 
     const handleLogout = async () => {
         try {
             await signOut(auth);
@@ -72,7 +96,7 @@ function App() {
     const renderPage = () => {
         switch (page) {
             case 'loading':
-                return <Loading text="Loading PrivyChat..." />;
+                return <Loading text="Loading MiMiChat..." />;
 
             case 'auth':
                 return <AuthPage onAuthSuccess={handleAuthSuccess} />;
@@ -95,7 +119,8 @@ function App() {
                         onLeave={handleLeaveRoom}
                         isNewRoom={roomInfo.isNewRoom}
                         onJoin={handleJoinRoom}
-                        onLogout={handleLogout} // Added for inbox accept → auto join
+                        derivedKey={derivedKey}
+                        onLogout={handleLogout} 
                     />
                 );
 
@@ -117,8 +142,6 @@ function App() {
 
     return (
         <div className="min-h-screen bg-gray-900">
-
-          
 
             {renderPage()}
         </div>

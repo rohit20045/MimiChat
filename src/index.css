@@ -12,9 +12,9 @@ body {
     width: 8px;
 }
 ::-webkit-scrollbar-thumb {
-    background-color: #4b5563; /* gray-600 */
+    background-color: #4b5563; 
     border-radius: 4px;
 }
 ::-webkit-scrollbar-track {
-    background-color: #1f2937; /* gray-800 */
+    background-color: #1f2937; 
 }

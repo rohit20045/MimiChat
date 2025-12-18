@@ -15,7 +15,7 @@ const CryptoHelper = {
                 ['deriveKey']
             );
             
-            // Use a static salt. This is acceptable because the secret key itself should be high-entropy.
+            // Use a static salt
             const salt = encoder.encode('e2ee-chat-salt');
             
             return await crypto.subtle.deriveKey(
@@ -36,53 +36,79 @@ const CryptoHelper = {
         }
     },
 
-    // 2. Encrypts a plaintext message
     encryptMessage: async (key, plaintext) => {
         const encoder = new TextEncoder();
         const data = encoder.encode(plaintext);
-        
+
         // IV must be unique for every encryption
-        const iv = crypto.getRandomValues(new Uint8Array(12)); 
-        
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+
         const ciphertext = await crypto.subtle.encrypt(
             { name: 'AES-GCM', iv },
             key,
             data
         );
-        
-        // Combine IV and ciphertext for storage.
-        // We convert binary data to Base64 strings to safely store in Firestore.
-        const ivString = btoa(String.fromCharCode.apply(null, iv));
-        const cipherString = btoa(String.fromCharCode.apply(null, new Uint8Array(ciphertext)));
 
-        return `${ivString}:${cipherString}`;
+        // Encode IV and ciphertext
+        const ivString = btoa(String.fromCharCode(...iv));
+        const cipherString = btoa(
+            String.fromCharCode(...new Uint8Array(ciphertext))
+        );
+
+        //  Integrity hash (SHA-256 of plaintext)
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashString = btoa(
+            String.fromCharCode(...new Uint8Array(hashBuffer))
+        );
+
+        return {
+            payload: `${ivString}:${cipherString}`,
+            hash: hashString
+        };
     },
 
-    // 3. Decrypts a ciphertext message
-    decryptMessage: async (key, combinedCiphertext) => {
-        try {
-            const [ivString, cipherString] = combinedCiphertext.split(':');
-            if (!ivString || !cipherString) {
-                throw new Error("Invalid ciphertext format.");
-            }
 
-            // Convert Base64 strings back to binary
-            const iv = new Uint8Array(atob(ivString).split('').map(c => c.charCodeAt(0)));
-            const ciphertext = new Uint8Array(atob(cipherString).split('').map(c => c.charCodeAt(0)));
+    decryptMessage: async (key, payload, expectedHash) => {
+        try {
+            const [ivString, cipherString] = payload.split(":");
+
+            const iv = new Uint8Array(
+                atob(ivString).split("").map(c => c.charCodeAt(0))
+            );
+
+            const ciphertext = new Uint8Array(
+                atob(cipherString).split("").map(c => c.charCodeAt(0))
+            );
 
             const decryptedBuffer = await crypto.subtle.decrypt(
-                { name: 'AES-GCM', iv },
+                { name: "AES-GCM", iv },
                 key,
                 ciphertext
             );
 
-            return new TextDecoder().decode(decryptedBuffer);
+            const plaintext = new TextDecoder().decode(decryptedBuffer);
+
+            // Verify integrity
+            const verifyBuffer = await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(plaintext)
+            );
+
+            const verifyHash = btoa(
+                String.fromCharCode(...new Uint8Array(verifyBuffer))
+            );
+
+            if (verifyHash !== expectedHash) {
+                return "[MESSAGE INTEGRITY FAILED]";
+            }
+
+            return plaintext;
         } catch (e) {
             console.error("Decryption failed:", e);
-            // Return a placeholder so the UI doesn't crash
             return "[DECRYPTION_FAILED]";
         }
     }
+
 };
 
 export default CryptoHelper;

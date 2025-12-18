@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { 
     getAuth, 
-    signInAnonymously, 
     signInWithCustomToken, 
     onAuthStateChanged,
     createUserWithEmailAndPassword,
@@ -25,9 +24,8 @@ import {
     getDocs
 } from 'firebase/firestore';
 
-// =======================================================
+
 //   FIREBASE CONFIG
-// =======================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBf-2lj4zNZd-o_5ZbGFOS-e2vX60twz7o",
   authDomain: "mimichat-1779e.firebaseapp.com",
@@ -40,9 +38,8 @@ const firebaseConfig = {
 
 const appId = firebaseConfig.appId;
 
-// =======================================================
+
 // Initializing Firebase
-// =======================================================
 let app, auth, db;
 try {
     app = initializeApp(firebaseConfig);
@@ -52,34 +49,23 @@ try {
     console.error("Error initializing Firebase:", e);
 }
 
-// Sign in anonymously
-signInAnonymously(auth)
-  .then(() => {
-    console.log("Signed in anonymously");
-  })
-  .catch((error) => {
-    console.error("Anonymous sign-in failed:", error);
-  });
-  
-// =======================================================
-// Firestore Path Helpers ( Original)
-// =======================================================
+
+// Firestore Path Helpers 
+
 const getRoomCollectionPath = () => `/artifacts/${appId}/public/data/chatRooms`;
 const getRoomDocPath = (roomId) => `${getRoomCollectionPath()}/${roomId}`;
 const getMessagesCollectionPath = (roomId) => `${getRoomDocPath(roomId)}/messages`;
 const getParticipantsCollectionPath = (roomId) => `${getRoomDocPath(roomId)}/participants`;
 
-// =======================================================
+
 //  EMAIL → PATH NORMALIZATION
-// Firestore does not allow "." in document IDs
-// =======================================================
+
 export function normalizeEmailForPath(email) {
     return email.replace(/\./g, ',');
 }
 
-// =======================================================
 //  SEND INVITATION
-// =======================================================
+
 export async function sendInvite(recipientEmail, invitation) {
     const normalized = normalizeEmailForPath(recipientEmail);
 
@@ -100,9 +86,8 @@ export async function sendInvite(recipientEmail, invitation) {
     return docRef.id;
 }
 
-// =======================================================
 //  LISTEN TO INBOX (REAL-TIME)
-// =======================================================
+
 export function listenToInbox(recipientEmail, callback, onError = console.error) {
     const normalized = normalizeEmailForPath(recipientEmail);
 
@@ -128,9 +113,8 @@ export function listenToInbox(recipientEmail, callback, onError = console.error)
     return unsubscribe;
 }
 
-// =======================================================
 //  UPDATE INVITATION STATUS
-// =======================================================
+
 export async function updateInviteStatus(recipientEmail, inviteId, updates = {}) {
     const normalized = normalizeEmailForPath(recipientEmail);
 
@@ -143,9 +127,8 @@ export async function updateInviteStatus(recipientEmail, inviteId, updates = {})
     await updateDoc(inviteDoc, updates);
 }
 
-// =======================================================
+
 //  DELETE INVITE
-// =======================================================
 export async function deleteInvite(recipientEmail, inviteId) {
     const normalized = normalizeEmailForPath(recipientEmail);
 
@@ -158,9 +141,9 @@ export async function deleteInvite(recipientEmail, inviteId) {
     await deleteDoc(inviteDoc);
 }
 
-// =======================================================
+
 //  FETCH INBOX (Once)
-// =======================================================
+
 export async function fetchInboxOnce(recipientEmail) {
     const normalized = normalizeEmailForPath(recipientEmail);
 
@@ -175,16 +158,15 @@ export async function fetchInboxOnce(recipientEmail) {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// =======================================================
+
 //  EXPORT EVERYTHING
-// =======================================================
+
 export {
     auth,
     db,
 
     // Auth
     signOut,
-    signInAnonymously,
     signInWithCustomToken,
     onAuthStateChanged,
     createUserWithEmailAndPassword,

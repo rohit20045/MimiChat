@@ -1,15 +1,12 @@
-// src/components/MenuPage.jsx
 import { useState } from 'react';
 import Modal from './common/Modal';
 import Inbox from './common/Inbox';
-import { auth, signOut } from '../firebase'; // make sure signOut is exported from your firebase wrapper
+import { auth, signOut } from '../firebase'; 
 import { LogOut } from 'lucide-react';
 import { sendInvite } from '../firebase'; // helper added earlier
 
-
-
 /**
- * Module 2: Main Menu (Create/Join) with Invite + Logout + Inbox
+Main Menu (Create/Join) with Invite + Logout + Inbox
  */
 function MenuPage({ user, onJoin, onCreate }) {
     const [showJoinModal, setShowJoinModal] = useState(false);
@@ -58,8 +55,6 @@ function MenuPage({ user, onJoin, onCreate }) {
         setInviteSending(true);
         setInviteMessage('');
         try {
-            // create a temporary room to invite to? We'll assume user wants to invite to a newly created room
-            // but to align with your workflow, we'll send current behaviour: create a random room and send both id+key.
             const randomId = Math.random().toString(36).substring(2, 9);
             const randomKey = crypto.randomUUID() + crypto.randomUUID();
             await sendInvite(inviteEmail, {
@@ -67,7 +62,7 @@ function MenuPage({ user, onJoin, onCreate }) {
                 roomId: randomId,
                 secretKey: randomKey
             });
-            // Optionally, call onCreate to immediately open the room for the inviter
+            
             onCreate(randomId, randomKey);
             setInviteMessage('Invite sent successfully. Room created for you.');
             setInviteEmail('');
