@@ -100,4 +100,15 @@ npm run dev
 
 This provides a zero-knowledge communication model.
 
-
+### Project ScreenShots
+Login Page             |  SignUp Page
+:-------------------------:|:-------------------------:
+![Alt text](image/1.PNG)  |  ![Alt text](image/2.PNG)
+Home Page             |  Inbox
+![Alt text](image/3.PNG)  |  ![Alt text](image/4.PNG)
+ChatRoom             |  Invite User 
+![Alt text](image/5.PNG)  |  ![Alt text](image/6.PNG)
+Room Info            |  Inbox with Invitation
+![Alt text](image/7.PNG)  |  ![Alt text](image/8.PNG)
+ChatRoom Message            |  Join Room 
+![Alt text](image/9.PNG)  |  ![Alt text](image/10.PNG)
