@@ -74,7 +74,7 @@ run: npm audit fix . -- No need to worry ignore it --
 - Once in Go to Build - Authenticaton - Get Started - Select Email/Password and Enable it (Email link (passwordless sign-in) not necessary) The Save
 - Go To Build - Firestore Database - Standard Edition - Keep default - Start in test mode
 - Now in Project Overview Click Add App - Select Web, Keep other option unchecked 
-- Now in npm copy the 'Your web app's Firebase configuration' only and replace in firebase.js in /src line 31 to 38 
+- Now in npm copy the 'Your web app's Firebase configuration' only and replace in firebase.js in /src line 28 to 36
 - Now when user sign up their data will saved and viewable in firestore database. Try it
 
 const firebaseConfig = {
